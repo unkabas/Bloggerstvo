@@ -117,11 +117,11 @@ func deleteTask(c *gin.Context) {
 func main() {
 	r := gin.Default()
 
-	r.GET("/tasks", getTasks)
-	r.GET("/tasks/:id", getTaskById)
-	r.POST("/createTasks", createTask)
-	r.PUT("/updateTasks/:id", updateTask)
-	r.DELETE("/deleteTasks/:id", deleteTask)
+	r.GET("/task", getTasks)
+	r.GET("/task/:id", getTaskById)
+	r.POST("/createTask", createTask)
+	r.PUT("/updateTask/:id", updateTask)
+	r.DELETE("/deleteTask/:id", deleteTask)
 
 	r.Run(":8080")
 }
