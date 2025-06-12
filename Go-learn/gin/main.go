@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"strconv"
 
-	_ "gin/docs" // Замените на ваш модуль
+	_ "gin/docs"
 	"github.com/swaggo/files"
-	_ "github.com/swaggo/files" // swagger embed files
+	_ "github.com/swaggo/files"
 	"github.com/swaggo/gin-swagger"
-	_ "github.com/swaggo/gin-swagger" // gin-swagger middleware
+	_ "github.com/swaggo/gin-swagger"
 )
 
 // @title Task API
