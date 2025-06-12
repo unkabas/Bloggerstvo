@@ -1,4 +1,4 @@
-package mdParser
+package mdparser
 
 import (
 	"github.com/gomarkdown/markdown"

@@ -1,13 +1,13 @@
 package main
 
 import (
+	"github.com/unkabas/Bloggerstvo/internal/mdParser"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/unkabas/Bloggerstvo/mdParser"
 )
 
 type Blog struct {
