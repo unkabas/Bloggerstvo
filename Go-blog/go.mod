@@ -1,4 +1,4 @@
-module goblog
+module github.com/unkabas/Bloggerstvo
 
 go 1.24.0
 
