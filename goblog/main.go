@@ -1,13 +1,14 @@
 package main
 
 import (
-	"github.com/unkabas/Bloggerstvo/internal/mdparser"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/unkabas/Bloggerstvo/internal/mdparser"
 )
 
 type Blog struct {
@@ -22,15 +23,30 @@ var allBlogs []Blog
 var contentDir = "./content"
 
 func main() {
-	allBlogs = loadMarkdownPosts(contentDir)
+	// Проверка существования папки content
+	contentPath := "/Users/unkabas/Desktop/goblog/content"
+	if _, err := os.Stat(contentPath); os.IsNotExist(err) {
+		log.Fatalf("Папка 'content' не найдена по пути: %s", contentPath)
+	}
+
+	// Загрузка markdown файлов
+	var err error
+	allBlogs, err = loadMarkdownPosts(contentPath)
+	if err != nil {
+		log.Fatalf("Ошибка загрузки markdown файлов: %v", err)
+	}
+	log.Printf("Загружено %d статей", len(allBlogs))
 
 	r := gin.Default()
 
 	// Роуты
 	r.GET("/blogs", getAllBlogs)
-	r.GET("/blogs/:title", getBlogById)
+	r.GET("/blogs/:title", getBlogByTitle)
 
-	r.Run(":8080")
+	log.Println("Сервер запущен на http://localhost:8080")
+	if err := r.Run(":8080"); err != nil {
+		log.Fatalf("Ошибка запуска сервера: %v", err)
+	}
 }
 
 func getAllBlogs(c *gin.Context) {
@@ -46,7 +62,7 @@ func getAllBlogs(c *gin.Context) {
 	c.JSON(http.StatusOK, blogs)
 }
 
-func getBlogById(c *gin.Context) {
+func getBlogByTitle(c *gin.Context) {
 	title := c.Param("title")
 	for _, blog := range allBlogs {
 		if strings.EqualFold(blog.Title, title) {
@@ -57,29 +73,39 @@ func getBlogById(c *gin.Context) {
 	c.JSON(http.StatusNotFound, gin.H{"error": "Blog not found"})
 }
 
-func loadMarkdownPosts(dir string) []Blog {
+func getWorkDir() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("Ошибка получения рабочей директории: %v", err)
+	}
+	return wd
+}
+
+func loadMarkdownPosts(dir string) ([]Blog, error) {
 	var blogs []Blog
 	idCounter := 1
 
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !strings.EqualFold(filepath.Ext(path), ".md") {
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() || !strings.EqualFold(filepath.Ext(path), ".md") {
 			return nil
 		}
 
 		mdContent, err := os.ReadFile(path)
 		if err != nil {
+			log.Printf("Ошибка чтения файла %s: %v", path, err)
 			return nil
 		}
 
-		// Генерация заголовка
-		title := generateTitleFromFilename(info.Name())
-
 		blog := Blog{
 			ID:          idCounter,
-			Title:       title,
+			Title:       generateTitleFromFilename(info.Name()),
 			Description: extractDescription(mdContent),
 			Directory:   filepath.Dir(path),
-			Content:     string(mdparser.MdToHTML(mdContent)), // Используем ваш парсер
+			Content:     string(mdparser.MdToHTML(mdContent)),
 		}
 
 		blogs = append(blogs, blog)
@@ -87,17 +113,23 @@ func loadMarkdownPosts(dir string) []Blog {
 		return nil
 	})
 
-	return blogs
+	return blogs, err
 }
 
-// Вспомогательные функции
 func generateTitleFromFilename(filename string) string {
 	name := strings.TrimSuffix(filename, filepath.Ext(filename))
-	return strings.Title(strings.ReplaceAll(name, "-", " "))
+	name = strings.ReplaceAll(name, "-", " ")
+	name = strings.ReplaceAll(name, "_", " ")
+	return strings.Title(name)
 }
 
 func extractDescription(md []byte) string {
-	// Берем первую строку как описание
-	firstLine := strings.Split(string(md), "\n")[0]
-	return strings.TrimPrefix(firstLine, "# ")
+	lines := strings.Split(string(md), "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
+			return trimmed
+		}
+	}
+	return "No description available"
 }
