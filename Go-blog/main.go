@@ -1,85 +1,103 @@
 package main
 
 import (
-	"fmt"
-	"io"
-	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/unkabas/Bloggerstvo/mdParser" // замените на ваш реальный модуль
+	"github.com/gin-gonic/gin"
+	"github.com/unkabas/Bloggerstvo/mdParser"
 )
 
-const (
-	contentDir = "./content" // Директория с Markdown файлами
-	baseURL    = "/blogs"    // Базовый URL путь
-)
-
-type BlogPost struct {
-	FilePath string
-	URLPath  string
-	HTML     []byte
+type Blog struct {
+	ID          int    `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Directory   string `json:"directory"`
+	Content     string `json:"content,omitempty"`
 }
 
-func processMarkdownFiles() ([]BlogPost, error) {
-	var posts []BlogPost
+var allBlogs []Blog
+var contentDir = "./content"
 
-	err := filepath.Walk(contentDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
+func main() {
+	allBlogs = loadMarkdownPosts(contentDir)
 
-		// Пропускаем директории и не-Markdown файлы
-		if info.IsDir() || strings.ToLower(filepath.Ext(path)) != ".md" {
-			return nil
-		}
+	r := gin.Default()
 
-		// Читаем файл
-		file, err := os.Open(path)
-		if err != nil {
-			log.Printf("Ошибка открытия файла %s: %v", path, err)
-			return nil
-		}
-		defer file.Close()
+	// Роуты
+	r.GET("/blogs", getAllBlogs)
+	r.GET("/blogs/:title", getBlogById)
 
-		mdContent, err := io.ReadAll(file)
-		if err != nil {
-			log.Printf("Ошибка чтения файла %s: %v", path, err)
-			return nil
-		}
+	r.Run(":8080")
+}
 
-		// Конвертируем в HTML
-		htmlContent := mdParser.MdToHTML(mdContent)
-
-		// Формируем URL путь
-		relPath, _ := filepath.Rel(contentDir, path)
-		urlPath := filepath.Join(baseURL, strings.TrimSuffix(relPath, filepath.Ext(relPath)))
-
-		posts = append(posts, BlogPost{
-			FilePath: path,
-			URLPath:  urlPath,
-			HTML:     htmlContent,
+func getAllBlogs(c *gin.Context) {
+	var blogs []Blog
+	for _, b := range allBlogs {
+		blogs = append(blogs, Blog{
+			ID:          b.ID,
+			Title:       b.Title,
+			Description: b.Description,
+			Directory:   b.Directory,
 		})
+	}
+	c.JSON(http.StatusOK, blogs)
+}
 
+func getBlogById(c *gin.Context) {
+	title := c.Param("title")
+	for _, blog := range allBlogs {
+		if strings.EqualFold(blog.Title, title) {
+			c.JSON(http.StatusOK, blog)
+			return
+		}
+	}
+	c.JSON(http.StatusNotFound, gin.H{"error": "Blog not found"})
+}
+
+func loadMarkdownPosts(dir string) []Blog {
+	var blogs []Blog
+	idCounter := 1
+
+	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.EqualFold(filepath.Ext(path), ".md") {
+			return nil
+		}
+
+		mdContent, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+
+		// Генерация заголовка
+		title := generateTitleFromFilename(info.Name())
+
+		blog := Blog{
+			ID:          idCounter,
+			Title:       title,
+			Description: extractDescription(mdContent),
+			Directory:   filepath.Dir(path),
+			Content:     string(mdParser.MdToHTML(mdContent)), // Используем ваш парсер
+		}
+
+		blogs = append(blogs, blog)
+		idCounter++
 		return nil
 	})
 
-	return posts, err
+	return blogs
 }
 
-func main() {
-	posts, err := processMarkdownFiles()
-	if err != nil {
-		log.Fatalf("Ошибка обработки файлов: %v", err)
-	}
+// Вспомогательные функции
+func generateTitleFromFilename(filename string) string {
+	name := strings.TrimSuffix(filename, filepath.Ext(filename))
+	return strings.Title(strings.ReplaceAll(name, "-", " "))
+}
 
-	// Выводим результаты
-	for _, post := range posts {
-		fmt.Printf("\n=== Файл: %s ===\n", post.FilePath)
-		fmt.Printf("URL: %s\n", post.URLPath)
-		fmt.Printf("Контент:\n%s\n", string(post.HTML))
-	}
-
-	fmt.Printf("\nОбработано %d статей\n", len(posts))
+func extractDescription(md []byte) string {
+	// Берем первую строку как описание
+	firstLine := strings.Split(string(md), "\n")[0]
+	return strings.TrimPrefix(firstLine, "# ")
 }
