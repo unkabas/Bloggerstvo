@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/unkabas/Bloggerstvo/internal/mdParser"
+	"github.com/unkabas/Bloggerstvo/internal/mdparser"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -79,7 +79,7 @@ func loadMarkdownPosts(dir string) []Blog {
 			Title:       title,
 			Description: extractDescription(mdContent),
 			Directory:   filepath.Dir(path),
-			Content:     string(mdParser.MdToHTML(mdContent)), // Используем ваш парсер
+			Content:     string(mdparser.MdToHTML(mdContent)), // Используем ваш парсер
 		}
 
 		blogs = append(blogs, blog)
